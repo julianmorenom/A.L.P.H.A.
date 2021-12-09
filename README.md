@@ -27,9 +27,9 @@ For the implementation of the items see:
 ###### Creators
 
 This project is a collaboration between:
-Casper Westhausen
-Julian Moreno
-Jeffrey Van Der Geest
+- Casper Westhausen
+- Julian Moreno
+- Jeffrey Van Der Geest
 
 A lot of this is based on tutorials made by Nicholas Renotte 
 If interested in ML, python and computer science in general check his channel.
