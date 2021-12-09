@@ -11,6 +11,9 @@ To engage with the system the visitors are encouraged to step into a.l.p.h.a’s
 To further influence the generated text the visitors can choose an item from a collection of objects. 
 This data is then sent to the natural language model GPT3-Neo to generate the personalized poem and is subsequently printed for the visitors to take home.
 
+First exhibition with a.l.p.h.a. can be ssen here
+https://www.youtube.com/watch?v=XbgmyMMmd_Y
+
 ## General
 
 In this process of exploration we use mainly cv2 for the purpose of computer vision and GPT3-NEO (Now that GPT3 has been released this may change).
