@@ -1,0 +1,48 @@
+person
+cat
+dog
+horse
+sheep
+cow
+elephant
+hat
+backpack
+umbrella
+shoe
+eye glasses
+handbag
+frisbee
+sports ball
+skateboard
+bottle
+plate
+wine glass
+cup
+fork
+knife
+spoon
+bowl
+banana
+apple
+sandwich
+orange
+broccoli
+carrot
+pizza
+donut
+cake
+chair
+potted plant
+door
+cell phone
+microwave
+oven
+toaster
+blender
+book
+clock
+vase
+scissors
+teddy bear
+hair drier
+hair brush
