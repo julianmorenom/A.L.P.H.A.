@@ -2,4 +2,5 @@
 *.mp4
 assets/videos/pedestrian_crossing.mp4
 GPT_SECRET_KEY_CW.json
+gpt-key-JM.json
 env/*
