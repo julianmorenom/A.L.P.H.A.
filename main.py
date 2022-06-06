@@ -17,53 +17,14 @@ import cv2
 import numpy as np
 import sys
 import time
-import keyboard
 import importlib.util
 import random
+import openai
+import json
+from gpt import GPT
 from threading import Thread
 from pythonosc import udp_client
 
-# Define VideoStream class to handle streaming of video from webcam in separate processing thread
-# Source - Adrian Rosebrock, PyImageSearch: https://www.pyimagesearch.com/2015/12/28/increasing-raspberry-pi-fps-with-python-and-opencv/
-class VideoStream:
-    """Camera object that controls video streaming from the Picamera"""
-    def __init__(self,resolution=(320,240),framerate=30):
-        # Initialize the PiCamera and the camera image stream
-        self.stream = cv2.VideoCapture(0)
-        ret = self.stream.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-        ret = self.stream.set(3,resolution[0])
-        ret = self.stream.set(4,resolution[1])
-            
-        # Read first frame from the stream
-        (self.grabbed, self.frame) = self.stream.read()
-
-	# Variable to control when the camera is stopped
-        self.stopped = False
-
-    def start(self):
-	# Start the thread that reads frames from the video stream
-        Thread(target=self.update,args=()).start()
-        return self
-
-    def update(self):
-        # Keep looping indefinitely until the thread is stopped
-        while True:
-            # If the camera is stopped, stop the thread
-            if self.stopped:
-                # Close camera resources
-                self.stream.release()
-                return
-
-            # Otherwise, grab the next frame from the stream
-            (self.grabbed, self.frame) = self.stream.read()
-
-    def read(self):
-	# Return the most recent frame
-        return self.frame
-
-    def stop(self):
-	# Indicate that the camera and thread should be stopped
-        self.stopped = True
 
 def highlightFace(net, frame, conf_threshold=0.7):
     frameOpencvDnn=frame.copy()
@@ -122,15 +83,27 @@ def define_promt_list():
             ]
     return happy, sad, angry, silly
 
+def define_gptmodel():
+    # setup OpenAI model generation
+    with open('gpt-key-JM.json') as f:
+        data = json.load(f)
+    openai.api_key = data["API_KEY"]
+    gpt = GPT(engine="davinci-instruct-beta-v3",
+            temperature=0.9,
+            max_tokens=500)
+    
+    return gpt
+
 def most_freq(List):
     counter = 0
-    list_obj = List[0]
+    if len(List) > 0:
+        list_obj = List[0]
     
-    for i in List:
-        curr_freq = List.count(i)
-        if(curr_freq<counter):
-            counter = curr_freq
-            list_obj = i 
+        for i in List:
+            curr_freq = List.count(i)
+            if(curr_freq<counter):
+                counter = curr_freq
+                list_obj = i 
         
         return list_obj
 
@@ -139,7 +112,6 @@ def mood_selector(results):
     if results[0] == 'Happy':
         print('we are on the happy state')
         message_to_send = feeling_happy(happy, results[1], results[2])
-      
     
     if results[0] == 'Sad':
         print('we are on the sad state')
@@ -157,7 +129,6 @@ def mood_selector(results):
 def feeling_happy(happy, gender, some_object): 
     print('Generating. Please wait...')
     prompt = random.choice(happy) + gender + some_object + '.'
-    # res = generator(prompt, max_length=text_length, do_sample=True, temperature=0.9)
     res = gpt.submit_request(prompt)
     global message_to_TD
     message_to_TD = (res.choices[0].text)
@@ -166,46 +137,41 @@ def feeling_happy(happy, gender, some_object):
 def feeling_sad(sad, gender, some_object):
     print('Generating. Please wait...')
     prompt = random.choice(sad) + gender + some_object + '.'
-    # res = generator(prompt, max_length=text_length, do_sample=True, temperature=0.9)
     res = gpt.submit_request(prompt)
     global message_to_TD
-    # message_to_TD = res[0]['generated_text']
     message_to_TD = (res.choices[0].text)
     print(message_to_TD)
     
 def feeling_silly(silly, gender, some_object):
     print('Generating. Please wait...')
     prompt = random.choice(silly) + gender + some_object + '.'
-    # res = generator(prompt, max_length=text_length, do_sample=True, temperature=0.9)
     res = gpt.submit_request(prompt)
-    global message_to_TD
-    # message_to_TD = (res[0]['generated_text'])  
+    global message_to_TD 
     message_to_TD = (res.choices[0].text)
 
 def feeling_angry(angry, gender, some_object):
     print('Generating. Please wait...')
     prompt = random.choice(angry) + gender + some_object + '.'
     res = gpt.submit_request(prompt)
-    #res = generator(prompt, max_length=text_length, do_sample=True, temperature=0.9)
     global message_to_TD
-    # message_to_TD = (res[0]['generated_text'])
     message_to_TD = (res.choices[0].text)
 
 def analyze_person():
-    state_completion = 0
 
     # Initialize frame rate calculation and video stream
     frame_rate_calc = 1
     freq = cv2.getTickFrequency()
-    videostream = VideoStream(resolution=(imW,imH),framerate=30).start()
+    cap = cv2.VideoCapture(0)
     time.sleep(1)
+    
+    state_completion = 0
 
     while state_completion == 0:
         # Start timer (for calculating frame rate)
         t1 = cv2.getTickCount()
 
         # Grab frame from video stream
-        frame1 = videostream.read()
+        ret, frame1 = cap.read()
 
         # Acquire frame and resize to expected shape [1xHxWx3]
         frame = frame1.copy()
@@ -263,15 +229,16 @@ def analyze_person():
         if cv2.waitKey(1) == ord('q'):
             break
 
+    cap.release()
     cv2.destroyAllWindows()
-    videostream.stop()
-
+    return state_completion
 
 def computer_vision_capture():
+
     # Initialize frame rate calculation and video stream
     frame_rate_calc = 1
     freq = cv2.getTickFrequency()
-    videostream = VideoStream(resolution=(imW,imH),framerate=30).start()
+    cap = cv2.VideoCapture(0)
     time.sleep(1)
     # variables 
     init_time = time.time()
@@ -282,7 +249,7 @@ def computer_vision_capture():
     objects = []
 
     while break_time < seq_forward_time:
-        hasFrame, frame = videostream.read()
+        hasFrame, frame = cap.read()
         resultImg,faceBoxes=highlightFace(faceNet,frame)
 
         # time management
@@ -306,8 +273,9 @@ def computer_vision_capture():
         # if the `q` key was pressed, break from the loop
         if cv2.waitKey(2) & 0xFF == ord("q"):
             break 
+    
+    cap.release()
     cv2.destroyAllWindows()
-    videostream.stop()
     
     # object ID part
     second_init_time = time.time()
@@ -502,11 +470,11 @@ happy, sad, angry, silly = define_promt_list()
 state = 1
 id_person = 0
 capture_results = []
+gpt = define_gptmodel()
 
 #check the ip ad before running
-client_processing = udp_client.SimpleUDPClient("192.168.178.53", 12000)
-client_print = udp_client.SimpleUDPClient("192.168.178.149", 5000)
-
+client_processing = udp_client.SimpleUDPClient("192.168.0.227", 12000)
+client_print = udp_client.SimpleUDPClient("192.168.0.229", 5000)
 
 # send the initial state message
 client_processing.send_message("/state", state)
@@ -549,12 +517,8 @@ while True:
         print("State 4: Sending message to printer")
         client_processing.send_message("/state", state)
         message_to_print = message_to_TD.replace('"', ' ')
-        message_to_print = message_to_TD.replace('\n', '')
+        # message_to_print = message_to_TD.replace('\n', '')
         client_print.send_message("/message_to_raspPi", message_to_print)
         time.sleep(45)
         state = 1
         client_processing.send_message("/state", state)
-        
-    if keyboard.is_pressed('q'):
-        print('You pressed quit key!')
-        break  # finishing the loop
