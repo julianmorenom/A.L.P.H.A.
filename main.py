@@ -90,7 +90,7 @@ def define_gptmodel():
     openai.api_key = data["API_KEY"]
     gpt = GPT(engine="davinci-instruct-beta-v3",
             temperature=0.9,
-            max_tokens=500)
+            max_tokens=100)
     
     return gpt
 
@@ -126,9 +126,22 @@ def mood_selector(results):
         print('we are on the Angry state')
         message_to_send = feeling_angry(angry, results[1], results[2])
 
+def change_woman_man(gender):
+    print(gender)
+    if gender == 'Male':
+        new_gender = 'man'
+    elif gender == 'Female':
+        new_gender = 'woman'
+
+    return new_gender
+
 def feeling_happy(happy, gender, some_object): 
     print('Generating. Please wait...')
-    prompt = random.choice(happy) + gender + some_object + '.'
+    if gender != None and some_object != None:
+        gender = change_woman_man(gender)
+        prompt = random.choice(happy) + gender + ' ' + some_object + '.'
+    else:
+        prompt = random.choice(happy)
     res = gpt.submit_request(prompt)
     global message_to_TD
     message_to_TD = (res.choices[0].text)
@@ -136,7 +149,11 @@ def feeling_happy(happy, gender, some_object):
 
 def feeling_sad(sad, gender, some_object):
     print('Generating. Please wait...')
-    prompt = random.choice(sad) + gender + some_object + '.'
+    if gender != None and some_object != None:
+        gender = change_woman_man(gender)
+        prompt = random.choice(sad) + gender + ' ' + some_object + '.'
+    else:
+        prompt = random.choice(sad)
     res = gpt.submit_request(prompt)
     global message_to_TD
     message_to_TD = (res.choices[0].text)
@@ -144,14 +161,22 @@ def feeling_sad(sad, gender, some_object):
     
 def feeling_silly(silly, gender, some_object):
     print('Generating. Please wait...')
-    prompt = random.choice(silly) + gender + some_object + '.'
+    if gender != None and some_object != None:
+        gender = change_woman_man(gender)
+        prompt = random.choice(silly) + gender + ' ' + some_object + '.'
+    else:
+        prompt = random.choice(silly)
     res = gpt.submit_request(prompt)
     global message_to_TD 
     message_to_TD = (res.choices[0].text)
 
 def feeling_angry(angry, gender, some_object):
     print('Generating. Please wait...')
-    prompt = random.choice(angry) + gender + some_object + '.'
+    if gender and some_object:
+        gender = change_woman_man(gender)
+        prompt = random.choice(angry) + gender + ' ' + some_object + '.'
+    else:
+        prompt = random.choice(angry)
     res = gpt.submit_request(prompt)
     global message_to_TD
     message_to_TD = (res.choices[0].text)
@@ -242,7 +267,7 @@ def computer_vision_capture():
     time.sleep(1)
     # variables 
     init_time = time.time()
-    seq_forward_time = 8
+    seq_forward_time = 10
     break_time = 0
     emotions = ['Happy', 'Sad', 'Silly', 'Angry']
     all_genders = []
@@ -281,19 +306,19 @@ def computer_vision_capture():
     second_init_time = time.time()
     second_break_time = 0
     freq = cv2.getTickFrequency()
-    videostream = VideoStream(resolution=(imW,imH),framerate=30).start()
+    cap = cv2.VideoCapture(0)
     time.sleep(1)
 
     while second_break_time < seq_forward_time:
         # time management
         current_time = time.time()
-        second_break_time = current_time - second_break_time
+        second_break_time = current_time - second_init_time
 
         # Start timer (for calculating frame rate)
         t1 = cv2.getTickCount()
 
         # Grab frame from video stream
-        frame1 = videostream.read()
+        hasframe, frame1 = cap.read()
 
         # Acquire frame and resize to expected shape [1xHxWx3]
         frame = frame1.copy()
@@ -352,12 +377,16 @@ def computer_vision_capture():
         if cv2.waitKey(1) == ord('q'):
             break
 
+    cap.release()
     cv2.destroyAllWindows()
-    videostream.stop()
 
     # choose results and return
-    print(objects)    
-    results = [random.choice(emotions), most_freq(all_genders), random.choice(objects)]
+    print(objects)
+    if(objects[0] != None):
+        results = [random.choice(emotions), most_freq(all_genders), random.choice(objects)]
+    else:
+        results = [random.choice(emotions), most_freq(all_genders), objects[0]]
+ 
     return results
 
 # setup the gender variables
@@ -473,14 +502,15 @@ capture_results = []
 gpt = define_gptmodel()
 
 #check the ip ad before running
-client_processing = udp_client.SimpleUDPClient("192.168.0.227", 12000)
-client_print = udp_client.SimpleUDPClient("192.168.0.229", 5000)
+client_processing = udp_client.SimpleUDPClient("127.0.1.1", 5000)
+client_print = udp_client.SimpleUDPClient("185.240.53.83", 5000)
 
 # send the initial state message
-client_processing.send_message("/state", state)
+client_processing.send_message("/st", state)
 
 while True:
     client_processing.send_message("/st", state)
+    time.sleep(10)
     # call the analyse person
     if state == 1:
         print("State 0: find a person in image")
@@ -494,31 +524,28 @@ while True:
         print("State 1: Analyze persons mood, genre and object")
         capture_results = computer_vision_capture()
         print('this are the results')
-        print(capture_results)
-        state = 3
-    elif state == 3:
-        print("State 2: calling the generation functions")
-        client_processing.send_message("/st", state)
         mood_selector(capture_results)
         print(message_to_TD)
-        state = 4
-        client_processing.send_message("/st", state)
-        # client.send_message("/st", state)
-    elif state == 4:
-        print("State 3: send message to screen")
-        client_processing.send_message("/st", state)
         screen_message = message_to_TD.replace('\n',' ')
         screen_message = screen_message.replace('-','')
-        client_processing.send_message("/messageIn", screen_message)
+        print(type(screen_message))
+        client_processing.send_message("/prompt", screen_message)
+
+        state = 4
+        
+    elif state == 4:
+        print("State 3: send message to screen")
+        
         client_processing.send_message("/st", state)
+        message_to_print = message_to_TD.replace('"', ' ')
+        # message_to_print = message_to_TD.replace('\n', '')
+        client_print.send_message("/message_to_raspPi", message_to_print)
         time.sleep(30)
         state = 5
     elif state == 5:
         print("State 4: Sending message to printer")
         client_processing.send_message("/state", state)
-        message_to_print = message_to_TD.replace('"', ' ')
-        # message_to_print = message_to_TD.replace('\n', '')
-        client_print.send_message("/message_to_raspPi", message_to_print)
-        time.sleep(45)
+        
+        time.sleep(5)
         state = 1
         client_processing.send_message("/state", state)
